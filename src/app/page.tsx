@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,13 +7,14 @@ import {
   Calendar as CalendarIcon, 
   ChevronRight, 
   History, 
-  Trophy, 
   Target, 
   TrendingUp,
   MapPin,
   Plus,
   BarChart3,
-  Golf
+  LogOut,
+  User as UserIcon,
+  LogIn
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,55 +29,66 @@ import { calculateDifferential, calculateHandicapIndex } from "@/lib/handicap-ut
 import {
   LineChart,
   Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area
 } from "recharts";
-
-interface Round {
-  id: string;
-  date: Date;
-  courseName: string;
-  grossScore: number;
-  rating: number;
-  slope: number;
-  differential: number;
-}
+import { 
+  useUser, 
+  useCollection, 
+  useFirestore, 
+  useAuth 
+} from "@/firebase";
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  orderBy, 
+  serverTimestamp,
+  doc,
+  setDoc 
+} from "firebase/firestore";
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut 
+} from "firebase/auth";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const DEFAULT_COURSE = "Seletar Country Club";
 
 export default function PinHighDashboard() {
+  const { user } = useUser();
+  const db = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+
   const [date, setDate] = useState<Date>(new Date());
   const [score, setScore] = useState<string>("");
   const [courseName, setCourseName] = useState<string>(DEFAULT_COURSE);
-  const [rounds, setRounds] = useState<Round[]>([]);
   const [isLoadingCourse, setIsLoadingCourse] = useState(false);
   const [currentCourseData, setCurrentCourseData] = useState<CourseHandicapOutput | null>(null);
-  const { toast } = useToast();
 
-  // Load initial course data for default
+  // Firestore Queries
+  const roundsQuery = user && db ? query(
+    collection(db, "users", user.uid, "rounds"),
+    orderBy("date", "desc")
+  ) : null;
+
+  const { data: roundsData, loading: roundsLoading } = useCollection(roundsQuery);
+  const rounds = (roundsData || []).map(r => ({
+    ...r,
+    date: r.date?.toDate ? r.date.toDate() : new Date(r.date)
+  }));
+
   useEffect(() => {
     handleFetchCourseData(DEFAULT_COURSE);
-    const saved = localStorage.getItem("pinhigh_rounds");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setRounds(parsed.map((r: any) => ({ ...r, date: new Date(r.date) })));
-      } catch (e) {
-        console.error("Failed to parse rounds", e);
-      }
-    }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("pinhigh_rounds", JSON.stringify(rounds));
-  }, [rounds]);
-
   const handleFetchCourseData = async (name: string) => {
+    if (!name) return;
     setIsLoadingCourse(true);
     try {
       const data = await fetchCourseHandicapData({ courseName: name });
@@ -91,7 +104,34 @@ export default function PinHighDashboard() {
     }
   };
 
+  const handleSignIn = async () => {
+    if (!auth) return;
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (error: any) {
+      toast({
+        title: "Sign In Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (!auth) return;
+    await signOut(auth);
+  };
+
   const handleAddRound = () => {
+    if (!user || !db) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to record rounds.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const numScore = parseInt(score);
     if (isNaN(numScore) || numScore <= 0) {
       toast({
@@ -110,17 +150,27 @@ export default function PinHighDashboard() {
       currentCourseData.slopeRating
     );
 
-    const newRound: Round = {
-      id: Math.random().toString(36).substr(2, 9),
-      date,
+    const roundsRef = collection(db, "users", user.uid, "rounds");
+    const newRoundData = {
+      date: date,
       courseName,
       grossScore: numScore,
       rating: currentCourseData.courseHandicapRating,
       slope: currentCourseData.slopeRating,
       differential: Number(diff.toFixed(1)),
+      createdAt: serverTimestamp(),
     };
 
-    setRounds([newRound, ...rounds]);
+    addDoc(roundsRef, newRoundData)
+      .catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: roundsRef.path,
+          operation: 'create',
+          requestResourceData: newRoundData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
+
     setScore("");
     toast({
       title: "Round Recorded",
@@ -136,19 +186,56 @@ export default function PinHighDashboard() {
     diff: r.differential
   }));
 
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <Card className="max-w-md w-full glass-card border-primary/20 shadow-2xl">
+          <CardHeader className="text-center">
+            <h1 className="text-5xl font-headline font-bold text-primary mb-2">PinHigh</h1>
+            <CardDescription className="text-lg">Elite golf performance tracking starts here.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            <Button onClick={handleSignIn} className="w-full h-14 text-lg font-bold rounded-xl gap-2">
+              <LogIn className="w-5 h-5" /> Sign in with Google
+            </Button>
+            <p className="text-xs text-center text-muted-foreground px-8">
+              Track your handicap index, analyze scoring trends, and master the course with precision data.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pb-20 p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
       {/* Header */}
       <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-headline font-bold text-primary flex items-center gap-2">
-             PinHigh
-          </h1>
-          <p className="text-muted-foreground font-medium">Precision Golf Tracking</p>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 shadow-lg">
+             {user.photoURL ? (
+               <img src={user.photoURL} alt={user.displayName || "User"} className="w-full h-full object-cover" />
+             ) : (
+               <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                 <UserIcon className="text-primary w-6 h-6" />
+               </div>
+             )}
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-4xl font-headline font-bold text-primary flex items-center gap-2">
+               PinHigh
+            </h1>
+            <p className="text-xs md:text-sm text-muted-foreground font-medium">Hello, {user.displayName?.split(' ')[0] || 'Golfer'}</p>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Handicap Index</div>
-          <div className="text-5xl font-headline font-bold text-accent electric-glow">{handicapIndex || "--"}</div>
+        <div className="flex items-center gap-6">
+          <div className="text-right hidden sm:block">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Handicap Index</div>
+            <div className="text-4xl font-headline font-bold text-accent electric-glow">{handicapIndex || "--"}</div>
+          </div>
+          <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out">
+            <LogOut className="w-5 h-5 text-muted-foreground hover:text-destructive transition-colors" />
+          </Button>
         </div>
       </header>
 
@@ -242,21 +329,27 @@ export default function PinHighDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[200px] w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                />
-                <Area type="monotone" dataKey="score" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorScore)" strokeWidth={3} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {roundsLoading ? (
+               <div className="h-full w-full flex items-center justify-center"><BarChart3 className="animate-pulse text-primary/20" /></div>
+            ) : chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
+                  <Area type="monotone" dataKey="score" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorScore)" strokeWidth={3} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Not enough data</div>
+            )}
           </CardContent>
         </Card>
 
@@ -267,14 +360,20 @@ export default function PinHighDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[200px] w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                />
-                <Line type="monotone" dataKey="diff" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ fill: 'hsl(var(--accent))' }} />
-              </LineChart>
-            </ResponsiveContainer>
+            {roundsLoading ? (
+               <div className="h-full w-full flex items-center justify-center"><BarChart3 className="animate-pulse text-accent/20" /></div>
+            ) : chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                  />
+                  <Line type="monotone" dataKey="diff" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ fill: 'hsl(var(--accent))' }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">Not enough data</div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -289,13 +388,17 @@ export default function PinHighDashboard() {
         </div>
 
         <div className="space-y-3">
-          {rounds.length === 0 ? (
+          {roundsLoading ? (
+            Array(3).fill(0).map((_, i) => (
+              <div key={i} className="h-20 w-full bg-primary/5 animate-pulse rounded-xl" />
+            ))
+          ) : rounds.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed rounded-xl border-white/5 bg-white/[0.02]">
               <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground/20 mb-3" />
               <p className="text-muted-foreground">No rounds recorded yet. Time to hit the links!</p>
             </div>
           ) : (
-            rounds.map((round) => (
+            rounds.map((round: any) => (
               <Card key={round.id} className="glass-card group hover:border-primary/50 transition-colors">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">

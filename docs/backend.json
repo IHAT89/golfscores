@@ -1,0 +1,45 @@
+
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Information about the golfer and their current handicap status.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "handicapIndex": { "type": "number" }
+      },
+      "required": ["email"]
+    },
+    "Round": {
+      "title": "Golf Round",
+      "description": "A single 18-hole or 9-hole score entry.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "courseName": { "type": "string" },
+        "grossScore": { "type": "number" },
+        "rating": { "type": "number" },
+        "slope": { "type": "number" },
+        "differential": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "courseName", "grossScore", "differential"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "The user's profile and global golf stats."
+    },
+    "/users/{userId}/rounds/{roundId}": {
+      "schema": "Round",
+      "description": "Historical rounds played by the user."
+    }
+  }
+}
