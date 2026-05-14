@@ -230,7 +230,7 @@ export default function PinHighDashboard() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl md:text-5xl font-headline font-bold text-primary tracking-tighter italic">PinHigh</h1>
+              <h1 className="text-3xl md:text-5xl font-headline font-bold text-primary tracking-tighter italic">PinHigh V2</h1>
               <div className="px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-bold uppercase tracking-widest border border-accent/20">PRO</div>
             </div>
             <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
