@@ -83,10 +83,10 @@ export default function PinHighDashboard() {
 
   const { data: roundsData, loading: roundsLoading } = useCollection(roundsQuery);
   
-  const rounds = (roundsData || []).map(r => ({
+  const rounds = (roundsData || []).map((r: any) => ({
     ...r,
     date: r.date?.toDate ? r.date.toDate() : new Date(r.date)
-  }));
+  })) as any[];
 
   useEffect(() => {
     if (user) {
