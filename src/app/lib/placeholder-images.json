@@ -1,0 +1,16 @@
+{
+  "placeholderImages": [
+    {
+      "id": "hero-golf",
+      "description": "Lush green golf course fairway",
+      "imageUrl": "https://picsum.photos/seed/golf1/1200/600",
+      "imageHint": "golf course"
+    },
+    {
+      "id": "golf-ball",
+      "description": "Golf ball on a tee with green background",
+      "imageUrl": "https://picsum.photos/seed/golf2/600/400",
+      "imageHint": "golf ball"
+    }
+  ]
+}
