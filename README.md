@@ -4,12 +4,12 @@ PinHigh is a precision performance tracking application designed for the modern 
 
 ## Features
 
-- **Authoritative Data**: Integrated with AI (Genkit) to retrieve verified USGA Course Ratings and Slope data.
-- **Precision Indexing**: Dynamic Handicap Index calculation based on your best recorded rounds.
-- **Cloud Sync**: All rounds are persisted securely using Firebase Firestore.
-- **Secure Auth**: Sign in with Google via Firebase Authentication.
-- **Modern UI**: Built with Next.js 15, ShadCN UI, and Tailwind CSS for a glassmorphism aesthetic.
-- **Cloudflare Ready**: Includes `wrangler.toml` for seamless deployment to Cloudflare Pages.
+- **Authoritative Data**: Integrated with Genkit to retrieve verified USGA Course Ratings and Slope data from national databases.
+- **Precision Indexing**: Dynamic Handicap Index calculation based on your top recorded performances.
+- **Cloud Persistence**: All rounds are securely synchronized and persisted via Firebase Firestore.
+- **Secure Authentication**: Enterprise-grade sign-in with Google via Firebase Auth.
+- **Elite Analytics**: Responsive charting for score trajectories and handicap differentials.
+- **Glassmorphism UI**: Built with Next.js 15, ShadCN UI, and Tailwind CSS for a premium aesthetic.
 
 ## Tech Stack
 
@@ -17,12 +17,12 @@ PinHigh is a precision performance tracking application designed for the modern 
 - **Database**: Firebase Firestore
 - **Authentication**: Firebase Auth (Google)
 - **AI/GenAI**: Genkit with Google Gemini
-- **Styling**: Tailwind CSS, Lucide icons, ShadCN components
-- **Deployment**: Cloudflare Pages
+- **Styling**: Tailwind CSS, Lucide Icons, ShadCN UI
+- **Deployment**: Optimized for Cloudflare Pages
 
 ## Getting Started
 
-### 1. Local Development
+### Local Development
 
 1. Install dependencies:
    ```bash
@@ -34,13 +34,18 @@ PinHigh is a precision performance tracking application designed for the modern 
    npm run dev
    ```
 
-### 2. Firebase Configuration
+### Firebase Setup
 
-Ensure you have a Firebase project set up. Update `src/firebase/config.ts` with your project's configuration if needed. Enable Google Auth and Firestore in the Firebase Console.
+1. Enable **Google Authentication** in your Firebase Console.
+2. Provision a **Cloud Firestore** database.
+3. Update `src/firebase/config.ts` with your specific Firebase Project Configuration.
 
-### 3. Deployment to Cloudflare
+### Deployment
 
-This project is configured for Cloudflare Pages.
-1. Push your code to GitHub.
-2. Connect your GitHub repository to Cloudflare Pages.
-3. Ensure you set the `GEMINI_API_KEY` as an environment variable in the Cloudflare dashboard.
+This project includes a `wrangler.toml` for seamless deployment to **Cloudflare Pages**. 
+1. Push your changes to GitHub.
+2. Connect the repository in the Cloudflare dashboard.
+3. Set your environment variables (e.g., `GEMINI_API_KEY`).
+
+---
+*PinHigh - Precision at the Pin.*
