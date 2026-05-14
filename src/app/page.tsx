@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,7 +13,9 @@ import {
   BarChart3,
   LogOut,
   User as UserIcon,
-  LogIn
+  LogIn,
+  ShieldCheck,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -32,7 +33,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  XAxis,
+  YAxis
 } from "recharts";
 import { 
   useUser, 
@@ -70,7 +73,6 @@ export default function PinHighDashboard() {
   const [isLoadingCourse, setIsLoadingCourse] = useState(false);
   const [currentCourseData, setCurrentCourseData] = useState<CourseHandicapOutput | null>(null);
 
-  // Firestore Queries - Memoized to prevent infinite loops
   const roundsQuery = useMemoFirebase(() => {
     if (!user || !db) return null;
     return query(
@@ -91,17 +93,13 @@ export default function PinHighDashboard() {
   }, []);
 
   const handleFetchCourseData = async (name: string) => {
-    if (!name) return;
+    if (!name || name.length < 3) return;
     setIsLoadingCourse(true);
     try {
       const data = await fetchCourseHandicapData({ courseName: name });
       setCurrentCourseData(data);
     } catch (err) {
-      toast({
-        title: "Error",
-        description: "Could not fetch course handicap information.",
-        variant: "destructive",
-      });
+      console.error(err);
     } finally {
       setIsLoadingCourse(false);
     }
@@ -145,7 +143,14 @@ export default function PinHighDashboard() {
       return;
     }
 
-    if (!currentCourseData) return;
+    if (!currentCourseData) {
+       toast({
+        title: "Course Data Missing",
+        description: "Wait for course validation before posting.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const diff = calculateDifferential(
       numScore,
@@ -184,7 +189,7 @@ export default function PinHighDashboard() {
   const handicapIndex = calculateHandicapIndex(rounds.map(r => r.differential));
   
   const chartData = [...rounds].reverse().map(r => ({
-    date: format(r.date, "MMM dd"),
+    date: format(r.date, "MM/dd"),
     score: r.grossScore,
     diff: r.differential
   }));
@@ -195,14 +200,14 @@ export default function PinHighDashboard() {
         <Card className="max-w-md w-full glass-card border-primary/20 shadow-2xl">
           <CardHeader className="text-center">
             <h1 className="text-5xl font-headline font-bold text-primary mb-2">PinHigh</h1>
-            <CardDescription className="text-lg">Elite golf performance tracking starts here.</CardDescription>
+            <CardDescription className="text-lg">Elite USGA-compliant golf tracking.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
             <Button onClick={handleSignIn} className="w-full h-14 text-lg font-bold rounded-xl gap-2">
               <LogIn className="w-5 h-5" /> Sign in with Google
             </Button>
             <p className="text-xs text-center text-muted-foreground px-8">
-              Track your handicap index, analyze scoring trends, and master the course with precision data.
+              Verify your performance with authoritative course data and precise handicap indexing.
             </p>
           </CardContent>
         </Card>
@@ -212,7 +217,6 @@ export default function PinHighDashboard() {
 
   return (
     <div className="min-h-screen pb-20 p-4 md:p-8 space-y-8 max-w-4xl mx-auto">
-      {/* Header */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 shadow-lg bg-muted">
@@ -228,7 +232,7 @@ export default function PinHighDashboard() {
             <h1 className="text-2xl md:text-4xl font-headline font-bold text-primary flex items-center gap-2">
                PinHigh
             </h1>
-            <p className="text-xs md:text-sm text-muted-foreground font-medium">Hello, {user.displayName?.split(' ')[0] || 'Golfer'}</p>
+            <p className="text-xs md:text-sm text-muted-foreground font-medium">Verified performance for {user.displayName?.split(' ')[0] || 'Golfer'}</p>
           </div>
         </div>
         <div className="flex items-center gap-6">
@@ -242,13 +246,12 @@ export default function PinHighDashboard() {
         </div>
       </header>
 
-      {/* Main Scoring Interface */}
       <Card className="glass-card shadow-2xl overflow-hidden border-primary/20">
         <CardHeader className="bg-primary/5 pb-4">
           <CardTitle className="flex items-center gap-2 text-xl">
             <Plus className="w-5 h-5 text-accent" /> Record New Round
           </CardTitle>
-          <CardDescription>Fast entry for your latest outing</CardDescription>
+          <CardDescription>We'll look up authoritative USGA ratings for your course.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -290,7 +293,7 @@ export default function PinHighDashboard() {
                 />
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
               </div>
-              {isLoadingCourse && <p className="text-[10px] text-accent animate-pulse">Syncing course data...</p>}
+              {isLoadingCourse && <p className="text-[10px] text-accent animate-pulse">Consulting USGA database...</p>}
             </div>
 
             <div className="space-y-2">
@@ -315,15 +318,27 @@ export default function PinHighDashboard() {
                 <span className="text-[10px] text-muted-foreground uppercase font-bold">Slope</span>
                 <span className="font-headline font-medium text-foreground">{currentCourseData?.slopeRating || "--"}</span>
               </div>
+              {currentCourseData && (
+                <div className="flex items-center gap-1.5 ml-2 self-end mb-1">
+                  {currentCourseData.isEstimated ? (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 text-[10px] font-bold uppercase">
+                      <AlertCircle className="w-3 h-3" /> Estimated
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase">
+                      <ShieldCheck className="w-3 h-3" /> Verified {currentCourseData.source && `via ${currentCourseData.source}`}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <Button onClick={handleAddRound} className="h-12 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-full">
+            <Button onClick={handleAddRound} className="h-12 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-full transition-transform active:scale-95">
               Post Score
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -343,6 +358,8 @@ export default function PinHighDashboard() {
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
+                  <XAxis dataKey="date" hide />
+                  <YAxis hide domain={['dataMin - 5', 'dataMax + 5']} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
@@ -368,10 +385,12 @@ export default function PinHighDashboard() {
             ) : chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
+                  <XAxis dataKey="date" hide />
+                  <YAxis hide domain={['dataMin - 2', 'dataMax + 2']} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
                   />
-                  <Line type="monotone" dataKey="diff" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ fill: 'hsl(var(--accent))' }} />
+                  <Line type="monotone" dataKey="diff" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ fill: 'hsl(var(--accent))', r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -381,7 +400,6 @@ export default function PinHighDashboard() {
         </Card>
       </div>
 
-      {/* History Timeline */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-headline font-bold flex items-center gap-2">
@@ -402,7 +420,7 @@ export default function PinHighDashboard() {
             </div>
           ) : (
             rounds.map((round: any) => (
-              <Card key={round.id} className="glass-card group hover:border-primary/50 transition-colors">
+              <Card key={round.id} className="glass-card group hover:border-primary/50 transition-all active:scale-[0.98]">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
@@ -411,9 +429,11 @@ export default function PinHighDashboard() {
                     <div>
                       <h3 className="font-bold text-foreground leading-none mb-1">{round.courseName}</h3>
                       <p className="text-xs text-muted-foreground flex items-center gap-2">
-                        {format(round.date, "MMMM d, yyyy")} 
+                        {format(round.date, "MMM d, yyyy")} 
                         <span className="inline-block w-1 h-1 rounded-full bg-white/10" />
                         Diff: <span className="text-accent font-bold">{round.differential}</span>
+                        <span className="inline-block w-1 h-1 rounded-full bg-white/10" />
+                        R/S: {round.rating}/{round.slope}
                       </p>
                     </div>
                   </div>

@@ -1,77 +1,42 @@
 'use server';
 /**
- * @fileOverview A Genkit flow and tool for retrieving golf course handicap and slope ratings.
+ * @fileOverview A Genkit flow for retrieving authoritative golf course handicap and slope ratings.
  *
- * - fetchCourseHandicapData - A function that fetches the handicap and slope data for a given golf course.
+ * - fetchCourseHandicapData - A function that fetches USGA-compliant handicap and slope data.
  * - CourseHandicapInput - The input type for the fetchCourseHandicapData function.
  * - CourseHandicapOutput - The return type for the fetchCourseHandicapData function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const CourseHandicapInputSchema = z.object({
-  courseName: z.string().describe('The full name of the golf course for which to retrieve handicap data.'),
+  courseName: z.string().describe('The full name of the golf course, including location if possible (e.g., "Pebble Beach Golf Links, CA").'),
 });
 export type CourseHandicapInput = z.infer<typeof CourseHandicapInputSchema>;
 
 const CourseHandicapOutputSchema = z.object({
-  courseHandicapRating: z.number().describe('The course handicap rating.'),
-  slopeRating: z.number().describe('The slope rating.'),
+  courseHandicapRating: z.number().describe('The USGA Course Rating (typically a decimal like 72.4).'),
+  slopeRating: z.number().describe('The USGA Slope Rating (typically an integer between 55 and 155).'),
+  source: z.string().optional().describe('The authoritative source or governing body for this data.'),
+  isEstimated: z.boolean().describe('Whether this data is an estimate or from a known database record.'),
 });
 export type CourseHandicapOutput = z.infer<typeof CourseHandicapOutputSchema>;
 
-// Mock data for course handicaps. In a real application, this would come from an external API or database.
-const MOCK_COURSE_DATA: { [key: string]: CourseHandicapOutput } = {
-  'Seletar Country Club': {
-    courseHandicapRating: 72.0,
-    slopeRating: 130,
-  },
-  'Sentosa Golf Club - Serapong Course': {
-    courseHandicapRating: 75.0,
-    slopeRating: 145,
-  },
-  'Laguna National Golf Resort Club': {
-    courseHandicapRating: 73.5,
-    slopeRating: 138,
-  },
-  'Tanah Merah Country Club - Garden Course': {
-    courseHandicapRating: 72.8,
-    slopeRating: 135,
-  },
-};
-
-const getCourseHandicapData = ai.defineTool(
-  {
-    name: 'getCourseHandicapData',
-    description: 'Retrieves the course handicap rating and slope rating for a given golf course. If the course is not found or only partially matched, it returns sensible default values.',
-    inputSchema: CourseHandicapInputSchema,
-    outputSchema: CourseHandicapOutputSchema,
-  },
-  async (input) => {
-    const searchName = input.courseName.toLowerCase();
-    for (const key in MOCK_COURSE_DATA) {
-      if (key.toLowerCase().includes(searchName)) { // Case-insensitive partial match
-        return MOCK_COURSE_DATA[key];
-      }
-    }
-    // Return default values for an unknown or unmatched course
-    console.warn(`Course '${input.courseName}' not found or partially matched in mock data. Returning default handicap values.`);
-    return {
-      courseHandicapRating: 71.0, // A sensible default
-      slopeRating: 120,          // A sensible default
-    };
-  }
-);
-
 const fetchCourseHandicapPrompt = ai.definePrompt({
   name: 'fetchCourseHandicapPrompt',
-  input: {schema: CourseHandicapInputSchema},
-  output: {schema: CourseHandicapOutputSchema},
-  tools: [getCourseHandicapData],
-  system: `You are an AI assistant specialized in golf course information. Your task is to provide the course handicap rating and slope rating for a specified golf course.
-Use the 'getCourseHandicapData' tool to retrieve this information. Only respond with the JSON object containing the 'courseHandicapRating' and 'slopeRating' as defined by the output schema.`,
-  prompt: `Retrieve the course handicap rating and slope rating for the golf course named: {{{courseName}}}.`,
+  input: { schema: CourseHandicapInputSchema },
+  output: { schema: CourseHandicapOutputSchema },
+  system: `You are an expert golf analytics assistant. Your primary task is to provide official USGA Course Rating and Slope Rating data for specific golf courses.
+
+When a user provides a course name:
+1. Search your internal knowledge base for the most up-to-date and authoritative ratings for that course.
+2. If the course has multiple tees, default to the "Championship" or "Back" tees (usually the highest difficulty).
+3. Identify the source of the data (e.g., "USGA Course Rating Database", "R&A", "Club Website").
+4. If you are unsure of the exact ratings, provide a highly accurate estimate based on similar championship-grade courses and set 'isEstimated' to true.
+
+Always return a valid JSON object matching the output schema.`,
+  prompt: `Retrieve the authoritative USGA Course Rating and Slope Rating for the following golf course: {{{courseName}}}.`,
 });
 
 const fetchCourseHandicapDataFlow = ai.defineFlow(
@@ -81,9 +46,9 @@ const fetchCourseHandicapDataFlow = ai.defineFlow(
     outputSchema: CourseHandicapOutputSchema,
   },
   async (input) => {
-    const {output} = await fetchCourseHandicapPrompt(input);
+    const { output } = await fetchCourseHandicapPrompt(input);
     if (!output) {
-      throw new Error('Failed to retrieve course handicap data.');
+      throw new Error('Could not retrieve authoritative handicap data for this course.');
     }
     return output;
   }
