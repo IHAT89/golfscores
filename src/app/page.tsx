@@ -38,16 +38,15 @@ import {
   useUser, 
   useCollection, 
   useFirestore, 
-  useAuth 
+  useAuth,
+  useMemoFirebase 
 } from "@/firebase";
 import { 
   collection, 
   addDoc, 
   query, 
   orderBy, 
-  serverTimestamp,
-  doc,
-  setDoc 
+  serverTimestamp 
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -71,13 +70,17 @@ export default function PinHighDashboard() {
   const [isLoadingCourse, setIsLoadingCourse] = useState(false);
   const [currentCourseData, setCurrentCourseData] = useState<CourseHandicapOutput | null>(null);
 
-  // Firestore Queries
-  const roundsQuery = user && db ? query(
-    collection(db, "users", user.uid, "rounds"),
-    orderBy("date", "desc")
-  ) : null;
+  // Firestore Queries - Memoized to prevent infinite loops
+  const roundsQuery = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return query(
+      collection(db, "users", user.uid, "rounds"),
+      orderBy("date", "desc")
+    );
+  }, [user?.uid, db]);
 
   const { data: roundsData, loading: roundsLoading } = useCollection(roundsQuery);
+  
   const rounds = (roundsData || []).map(r => ({
     ...r,
     date: r.date?.toDate ? r.date.toDate() : new Date(r.date)
@@ -188,7 +191,7 @@ export default function PinHighDashboard() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background text-foreground">
         <Card className="max-w-md w-full glass-card border-primary/20 shadow-2xl">
           <CardHeader className="text-center">
             <h1 className="text-5xl font-headline font-bold text-primary mb-2">PinHigh</h1>
@@ -212,11 +215,11 @@ export default function PinHighDashboard() {
       {/* Header */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 shadow-lg">
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 shadow-lg bg-muted">
              {user.photoURL ? (
                <img src={user.photoURL} alt={user.displayName || "User"} className="w-full h-full object-cover" />
              ) : (
-               <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+               <div className="w-full h-full flex items-center justify-center">
                  <UserIcon className="text-primary w-6 h-6" />
                </div>
              )}
@@ -306,14 +309,14 @@ export default function PinHighDashboard() {
             <div className="flex gap-4">
               <div className="flex flex-col">
                 <span className="text-[10px] text-muted-foreground uppercase font-bold">Rating</span>
-                <span className="font-headline font-medium text-white">{currentCourseData?.courseHandicapRating || "--"}</span>
+                <span className="font-headline font-medium text-foreground">{currentCourseData?.courseHandicapRating || "--"}</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] text-muted-foreground uppercase font-bold">Slope</span>
-                <span className="font-headline font-medium text-white">{currentCourseData?.slopeRating || "--"}</span>
+                <span className="font-headline font-medium text-foreground">{currentCourseData?.slopeRating || "--"}</span>
               </div>
             </div>
-            <Button onClick={handleAddRound} className="h-12 px-8 bg-primary hover:bg-primary/90 text-white font-bold rounded-full">
+            <Button onClick={handleAddRound} className="h-12 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-full">
               Post Score
             </Button>
           </div>
